@@ -32,15 +32,9 @@
 
 #include <mtev_defines.h>
 #include <mtev_conf.h>
-#include <mtev_console.h>
 #include <mtev_dso.h>
-#include <mtev_listener.h>
 #include <mtev_main.h>
 #include <mtev_memory.h>
-#include <mtev_rest.h>
-#include <mtev_cluster.h>
-#include <mtev_capabilities_listener.h>
-#include <mtev_events_rest.h>
 #include <eventer/eventer.h>
 #include <mtev_fq.h>
 
@@ -55,6 +49,7 @@
 static int debug = 0;
 static int foreground = 0;
 static char *droptouser = NULL, *droptogroup = NULL;
+static mtev_log_stream_t fqlog;
 
 static int
 usage(const char *prog) {
@@ -84,8 +79,8 @@ parse_cli_args(int argc, char * const *argv) {
 }
 
 static mtev_hook_return_t
-on_msg_received(void *closure, fq_client client, int connection_id, fq_msg *message, void * a, size_t b) {
-  mtevL(mtev_stderr, "Received message via connection %d: %s\n", connection_id, message->payload);
+on_msg_received(void *closure, fq_client client, int connection_id, fq_msg *msg, void * a, size_t b) {
+  mtevL(fqlog, "[%.*s] %.*s", msg->sender.len, msg->sender.name, msg->payload_len, msg->payload);
   return MTEV_HOOK_CONTINUE;
 }
 
@@ -93,7 +88,12 @@ static int
 child_main(void) {
   eventer_init();
   mtev_dso_init();
+  mtev_dso_post_init();
   mtev_fq_handle_message_hook_register("fqc", on_msg_received, NULL);
+  fqlog = mtev_log_stream_find("fqlog");
+
+  mtevL(mtev_stderr, "Ready.\n");
+
   /* Lastly, spin up the event loop */
   eventer_loop();
   return 0;
